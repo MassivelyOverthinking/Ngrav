@@ -2,11 +2,16 @@
 # IMPORTS
 #==================================================================================================================
 
+from .exceptions import InvalidOnnxModelError, InvalidOnnxPackageError, UnsupportedOnnxModelError
 
 #==================================================================================================================
 # PACKAGE MANAGEMENT
 #==================================================================================================================
 
-__all__ = []
+__all__ = [
+    "InvalidOnnxModelError",
+    "InvalidOnnxPackageError",
+    "UnsupportedOnnxModelError"
+]
 __author__ = "HysingerDev"
 __version__ = "0.1.0"
