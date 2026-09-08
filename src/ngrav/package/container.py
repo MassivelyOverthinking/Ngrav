@@ -22,7 +22,9 @@ from ..exceptions import (
 )
 
 from manifest import (
-    NgravManifest
+    NgravManifest,
+    BaseInfo,
+    OnnxModelInfo
 )
 
 #==================================================================================================================
@@ -87,3 +89,49 @@ class NgravPacket:
             onnx.checker.check_model(model)
         except Exception:
             raise InvalidOnnxModelError(f"Failed to load ONNX model")
+
+        # Build initial mmetadata manifest
+        manifest = cls._build_manifest(
+            model=model,
+            model_source=final_path
+        )
+
+        # Create and return new NgravPacket object
+        return cls(
+            model=model,
+            manifest=manifest
+        )
+
+    @staticmethod
+    def _build_manifest(model_source: Path, model: ModelProto) -> NgravManifest:
+        """
+        Extract the first small set of reproducibility metadata.
+
+        This method will naturally grow as Ngrav's manifest evolves.
+        """
+
+
+        opoperator_sets = [
+            BaseInfo(
+                domain=opset.domain,
+                version=opset.version
+            )
+            for opset in model.opset_import
+        ]
+
+        onnx_info = OnnxModelInfo(
+            ir_version=model.ir_version,
+            producer_name=model.producer_name or None,
+            producer_version=model.producer_version or None,
+            model_version=model.model_version or None,
+            graph_name=model.graph.name or None,
+            opsets=opoperator_sets,
+        )
+
+        return NgravManifest(
+            name=model_source.stem,
+            original_filename=model_source.name,
+            valid_onnx=True,
+            onnx=onnx_info,
+        )
+        
