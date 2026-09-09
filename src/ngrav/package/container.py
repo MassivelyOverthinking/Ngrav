@@ -45,22 +45,78 @@ class NgravPacket:
     6. Re-open an existing Ngrav package.
     """
 
-    __slots__ = ("package_path", "_model", "_manifest")
+    __slots__ = ("package_path", "_title", "_model", "_manifest", "_fingerprint")
 
-    MANIFEST_FILENAME = "manifest.yaml"
-    MODEL_DIRECTORY = "model"
-    MODEL_FILENAME = "model.onnx"
-
-    def __init__(self, package_path: PathInput):
+    def __init__(self, package_path: PathInput, title: str | None):
         if not isinstance(package_path, PathInput):
             raise TypeError(f"Package path must be Type: PathInput - Received Dtype: {type(package_path).__name__}")
+
+        if not isinstance(title, str):
+             raise TypeError(f"Title must be Type: Str - Received Dtype: {type(title).__name__}")
         
         self.package_path = Path(package_path)
+        self._title = package_path if title is None else title
+        self._fingerprint = None
         self._model = None
         self._manifest = None
 
+    #==================================================================================================================
+    # NGRAV PACKET: Properties
+    #==================================================================================================================
+
+    @property
+    def title(self) -> str:
+        """
+        String title attached to the Ngrav Packet-object
+         
+        ----- Returns -----
+        Onnx.ModelProto
+             
+        """
+        return self._title
+    
+    @property
+    def model(self) -> ModelProto:
+        """
+        Reference to the internal ONNX model.
+
+        ----- Returns -----
+        Onnx.ModelProto
+    
+        """
+
+        return self._model
+
+    @property
+    def manifest(self) -> str:
+        """
+        Copy of the internal metadata related to ONNX model
+        
+        ----- Returns -----
+        YAML.file
+            
+        """
+
+        return self._manifest
+
+    @property
+    def model_path(self) -> Path:
+        """
+        Path representation of the initial ONNX model filepath.
+        
+        ----- Returns -----
+        pathlib.Path
+            
+        """
+
+        return self.package_path
+
+    #==================================================================================================================
+    # NGRAV PACKET: Class Methods
+    #==================================================================================================================
+
     @classmethod
-    def from_onnx(cls, model_path: PathInput) -> NgravPacket:
+    def from_onnx(cls, model_path: PathInput, title: str | None) -> NgravPacket:
         """
         Construct an in-memory NgravPackage from an ONNX file.
 
@@ -70,6 +126,9 @@ class NgravPacket:
         # Validate parameters
         if not isinstance(model_path, PathInput):
             raise TypeError(f"Model path should be Type: PathInput - Received dtype: {type(model_path).__name__}")
+
+        if not isinstance(title, str):
+            raise TypeError(f"Title should be Type: Str - Received dtype: {type(title).__name__}")
 
         final_path = Path(model_path)   # Convert the parameter input to valid Path-object
 
@@ -96,11 +155,18 @@ class NgravPacket:
             model_source=final_path
         )
 
+        fingerprint = cls._construct_fingerprint()
+
         # Create and return new NgravPacket object
         return cls(
-            model=model,
-            manifest=manifest
+            _model=model,
+            _manifest=manifest,
+            _fingerprint=fingerprint
         )
+
+    #==================================================================================================================
+    # NGRAV PACKET: Static Methods
+    #==================================================================================================================
 
     @staticmethod
     def _build_manifest(model_source: Path, model: ModelProto) -> NgravManifest:
@@ -109,7 +175,6 @@ class NgravPacket:
 
         This method will naturally grow as Ngrav's manifest evolves.
         """
-
 
         opoperator_sets = [
             BaseInfo(
@@ -134,4 +199,18 @@ class NgravPacket:
             valid_onnx=True,
             onnx=onnx_info,
         )
+
+    @staticmethod
+    def _construct_fingerprint() -> None:
+        return ""
+
+    #==================================================================================================================
+    # NGRAV PACKET: Magic Methods
+    #==================================================================================================================
+
+    def __repr__(self) -> str:
+        return f"Ngrav Package:" 
+
+    def __eq__(self, other: NgravPacket) -> bool:
+        return self._fingerprint == other._fingerprint
         
