@@ -4,12 +4,9 @@
 
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 
-import onnx
-import yaml
-from onnx import ModelProto, TensorProto
+from onnx import ModelProto
 
 from ..utility import (PathInput)
 
@@ -58,7 +55,7 @@ class NgravPacket:
         valid_onnx: bool = True
     ):
         self._source = source
-        self._package_path = Path(source_path)
+        self._source_path = Path(source_path)
         self._title = str(source_path) if title is None else title
         self._model: ModelProto | None = None
         self._manifest = manifest
@@ -75,7 +72,7 @@ class NgravPacket:
         String title attached to the Ngrav Packet-object
          
         ----- Returns -----
-        Onnx.ModelProto
+        Str
              
         """
         return self._title
@@ -93,12 +90,12 @@ class NgravPacket:
         return self._get_model()
 
     @property
-    def manifest(self) -> str:
+    def manifest(self) -> NgravManifest:
         """
         Copy of the internal metadata related to ONNX model
         
         ----- Returns -----
-        YAML.file
+        NgravManifest
             
         """
 
@@ -147,6 +144,7 @@ class NgravPacket:
         if final_path.suffix.lower() != ".onnx":
             raise ValueError(f"Requested model file is not a valid ONNX format - {final_path}")
 
+        # Construct a deterministic ONNX model snapshot for model initialization (Lazy loading feature)
         source = OnnxSourceSnapshot.from_path(filepath=final_path)
 
         return cls(
@@ -200,12 +198,16 @@ class NgravPacket:
     #==================================================================================================================
 
     def _get_model(self) -> ModelProto:
+        # HELPER-METHOD
+        # Check if the internal variable '_model' is instantialized - If not, load it into memory (Lazy loading feature).
         if self._model is None:
             self._model = self._source.load_model()
 
         return self._model
 
     def _get_manifest(self) -> NgravManifest:
+            # HELPER-METHOD
+            # Check if the internal variable '_manifest' is instantialized - If not, load it into memory (Lazy loading feature).
             if self._manifest is None:
                 self._manifest = self._construct_manifest(self._source.source_path, self._get_model())
     
@@ -222,22 +224,14 @@ class NgravPacket:
         Intentionally avoids printing the complete ONNX model configuration or manifest metadata.
         """
 
-        fingerprint = (
-            self._fingerprint
-            if self._fingerprint
-            else "<unassigned>"
-        )
+        fingerprint = (self._fingerprint if self._fingerprint else "not-loaded")
 
-        model_state = (
-            "loaded"
-            if self._model is not None
-            else "not-loaded"
-        )
+        model_state = ("loaded" if self._model is not None else "not-loaded")
 
         return (
             f"{self.__class__.__name__}("
             f"title={self._title!r}, "
-            f"model_path={str(self.package_path)!r}, "
+            f"mource_path={str(self._source_path)!r}, "
             f"model={model_state!r}, "
             f"fingerprint={fingerprint!r}"
             f")"
@@ -248,7 +242,6 @@ class NgravPacket:
         Compare two NgravPacket objects using deterministic fingerprints.
 
         Packets without concrete fingerprints are not considered equal unless the exact same Python object.
-        
         """
 
         if not isinstance(other, NgravPacket):
