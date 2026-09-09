@@ -11,21 +11,11 @@ import onnx
 import yaml
 from onnx import ModelProto, TensorProto
 
-from ..utility import (
-    PathInput
-)
+from ..utility import (PathInput)
 
-from ..exceptions import (
-    InvalidOnnxPackageError,
-    InvalidOnnxModelError,
-    UnsupportedOnnxModelError
-)
+from ..exceptions import (InvalidOnnxPackageError, InvalidOnnxModelError, UnsupportedOnnxModelError)
 
-from manifest import (
-    NgravManifest,
-    BaseInfo,
-    OnnxModelInfo
-)
+from manifest import (NgravManifest, BaseInfo, OnnxModelInfo)
 
 #==================================================================================================================
 # NGRAV BASE CONTAINER
@@ -45,17 +35,17 @@ class NgravPacket:
     6. Re-open an existing Ngrav package.
     """
 
-    __slots__ = ("package_path", "_title", "_model", "_manifest", "_fingerprint")
+    __slots__ = ("package_path", "title", "_model", "_manifest", "_fingerprint")
 
-    def __init__(self, package_path: PathInput, title: str | None):
+    def __init__(self, package_path: PathInput, title: str | None = None):
         if not isinstance(package_path, PathInput):
             raise TypeError(f"Package path must be Type: PathInput - Received Dtype: {type(package_path).__name__}")
 
-        if not isinstance(title, str):
-             raise TypeError(f"Title must be Type: Str - Received Dtype: {type(title).__name__}")
+        if title is not None and not isinstance(title, str):
+            raise TypeError(f"Title must be Type: Str - Received Dtype: {type(title).__name__}")
         
         self.package_path = Path(package_path)
-        self._title = package_path if title is None else title
+        self.title = package_path if title is None else title
         self._fingerprint = None
         self._model = None
         self._manifest = None
@@ -73,7 +63,7 @@ class NgravPacket:
         Onnx.ModelProto
              
         """
-        return self._title
+        return self.title
     
     @property
     def model(self) -> ModelProto:
@@ -127,8 +117,10 @@ class NgravPacket:
         if not isinstance(model_path, PathInput):
             raise TypeError(f"Model path should be Type: PathInput - Received dtype: {type(model_path).__name__}")
 
-        if not isinstance(title, str):
+        if title is not None and not isinstance(title, str):
             raise TypeError(f"Title should be Type: Str - Received dtype: {type(title).__name__}")
+
+        final_title = str(model_path) if title is None else title   # Contruct valid title - Defaults to ONNX model filepath
 
         final_path = Path(model_path)   # Convert the parameter input to valid Path-object
 
@@ -159,6 +151,7 @@ class NgravPacket:
 
         # Create and return new NgravPacket object
         return cls(
+            title=final_title,
             _model=model,
             _manifest=manifest,
             _fingerprint=fingerprint
@@ -201,7 +194,7 @@ class NgravPacket:
         )
 
     @staticmethod
-    def _construct_fingerprint() -> None:
+    def _construct_fingerprint(model: ModelProto) ->  bytes:
         return ""
 
     #==================================================================================================================
@@ -209,8 +202,46 @@ class NgravPacket:
     #==================================================================================================================
 
     def __repr__(self) -> str:
-        return f"Ngrav Package:" 
+        """
+        Explicit String representation of the NgravPacket-object.
 
-    def __eq__(self, other: NgravPacket) -> bool:
+        Intentionally avoids printing the complete ONNX model configuration or manifest metadata.
+        """
+
+        fingerprint = (
+            self._fingerprint
+            if self._fingerprint
+            else "<unassigned>"
+        )
+
+        model_state = (
+            "loaded"
+            if self._model is not None
+            else "not-loaded"
+        )
+
+        return (
+            f"{self.__class__.__name__}("
+            f"title={self._title!r}, "
+            f"model_path={str(self.package_path)!r}, "
+            f"model={model_state!r}, "
+            f"fingerprint={fingerprint!r}"
+            f")"
+    )
+
+    def __eq__(self, other: object) -> bool:
+        """
+        Compare two NgravPacket objects using deterministic fingerprints.
+
+        Packets without concrete fingerprints are not considered equal unless the exact same Python object.
+        
+        """
+
+        if not isinstance(other, NgravPacket):
+            return False
+
+        if (self._fingerprint is None or other._fingerprint is None):
+            return self is other
+
         return self._fingerprint == other._fingerprint
         
