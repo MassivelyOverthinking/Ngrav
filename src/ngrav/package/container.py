@@ -17,6 +17,8 @@ from ..exceptions import (InvalidOnnxPackageError, InvalidOnnxModelError, Unsupp
 
 from manifest import (NgravManifest, BaseInfo, OnnxModelInfo)
 
+from ngrav.model import OnnxSourceSnapshot
+
 #==================================================================================================================
 # NGRAV BASE CONTAINER
 #==================================================================================================================
@@ -35,20 +37,33 @@ class NgravPacket:
     6. Re-open an existing Ngrav package.
     """
 
-    __slots__ = ("package_path", "title", "_model", "_manifest", "_fingerprint")
+    __slots__ = (
+        "_source",
+        "_source_path", 
+        "_title", 
+        "_model", 
+        "_manifest", 
+        "_fingerprint",
+        "_valid_onnx"
+    )
 
-    def __init__(self, package_path: PathInput, title: str | None = None):
-        if not isinstance(package_path, PathInput):
-            raise TypeError(f"Package path must be Type: PathInput - Received Dtype: {type(package_path).__name__}")
-
-        if title is not None and not isinstance(title, str):
-            raise TypeError(f"Title must be Type: Str - Received Dtype: {type(title).__name__}")
-        
-        self.package_path = Path(package_path)
-        self.title = package_path if title is None else title
-        self._fingerprint = None
-        self._model = None
-        self._manifest = None
+    def __init__(
+        self, 
+        source: OnnxSourceSnapshot, 
+        source_path: PathInput, 
+        title: str | None = None,
+        *,
+        manifest: NgravManifest | None = None,
+        fingerprint: str | None = None,
+        valid_onnx: bool = True
+    ):
+        self._source = source
+        self._package_path = Path(source_path)
+        self._title = str(source_path) if title is None else title
+        self._model: ModelProto | None = None
+        self._manifest = manifest
+        self._fingerprint = fingerprint
+        self._valid_onnx = valid_onnx
 
     #==================================================================================================================
     # NGRAV PACKET: Properties
@@ -63,7 +78,7 @@ class NgravPacket:
         Onnx.ModelProto
              
         """
-        return self.title
+        return self._title
     
     @property
     def model(self) -> ModelProto:
@@ -75,7 +90,7 @@ class NgravPacket:
     
         """
 
-        return self._model
+        return self._get_model()
 
     @property
     def manifest(self) -> str:
@@ -87,10 +102,10 @@ class NgravPacket:
             
         """
 
-        return self._manifest
+        return self._get_manifest()
 
     @property
-    def model_path(self) -> Path:
+    def source_path(self) -> Path:
         """
         Path representation of the initial ONNX model filepath.
         
@@ -99,7 +114,7 @@ class NgravPacket:
             
         """
 
-        return self.package_path
+        return self._source.source_path
 
     #==================================================================================================================
     # NGRAV PACKET: Class Methods
@@ -120,8 +135,6 @@ class NgravPacket:
         if title is not None and not isinstance(title, str):
             raise TypeError(f"Title should be Type: Str - Received dtype: {type(title).__name__}")
 
-        final_title = str(model_path) if title is None else title   # Contruct valid title - Defaults to ONNX model filepath
-
         final_path = Path(model_path)   # Convert the parameter input to valid Path-object
 
         # Validate Path-object - File exists, is file, file is ONNX format
@@ -134,27 +147,12 @@ class NgravPacket:
         if final_path.suffix.lower() != ".onnx":
             raise ValueError(f"Requested model file is not a valid ONNX format - {final_path}")
 
-        # Load onnx model from vaild Path-object and check model integrity
-        try:
-            model = onnx.load(final_path)
-            onnx.checker.check_model(model)
-        except Exception:
-            raise InvalidOnnxModelError(f"Failed to load ONNX model")
+        source = OnnxSourceSnapshot.from_path(filepath=final_path)
 
-        # Build initial mmetadata manifest
-        manifest = cls._build_manifest(
-            model=model,
-            model_source=final_path
-        )
-
-        fingerprint = cls._construct_fingerprint()
-
-        # Create and return new NgravPacket object
         return cls(
-            title=final_title,
-            _model=model,
-            _manifest=manifest,
-            _fingerprint=fingerprint
+            source=source,
+            title=title,
+            valid_onnx=True
         )
 
     #==================================================================================================================
@@ -162,7 +160,7 @@ class NgravPacket:
     #==================================================================================================================
 
     @staticmethod
-    def _build_manifest(model_source: Path, model: ModelProto) -> NgravManifest:
+    def _construct_manifest(model_source: Path, model: ModelProto) -> NgravManifest:
         """
         Extract the first small set of reproducibility metadata.
 
@@ -196,6 +194,22 @@ class NgravPacket:
     @staticmethod
     def _construct_fingerprint(model: ModelProto) ->  bytes:
         return ""
+
+    #==================================================================================================================
+    # NGRAV PACKET: Instance functions
+    #==================================================================================================================
+
+    def _get_model(self) -> ModelProto:
+        if self._model is None:
+            self._model = self._source.load_model()
+
+        return self._model
+
+    def _get_manifest(self) -> NgravManifest:
+            if self._manifest is None:
+                self._manifest = self._construct_manifest(self._source.source_path, self._get_model())
+    
+            return self._manifest
 
     #==================================================================================================================
     # NGRAV PACKET: Magic Methods

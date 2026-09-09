@@ -62,6 +62,16 @@ class OnnxSourceSnapshot:
         except Exception:
             raise InvalidOnnxModelError(f"ONNX model validation failed: {self.source_path}")
 
+    def load_model(self) -> ModelProto:
+        """
+        Materialize a concrete ONNX model from internal model bytes.
+        """
+
+        try:
+            return onnx.load_model_from_string(self.model_bytes)
+        except Exception:
+            raise InvalidOnnxModelError(f"Failed to materialize the ONNX model: {self.source_path}")
+
 def _model_uses_external_data(model: ModelProto) -> bool:
     return _graph_uses_external_data(model.graph)
 
