@@ -10,10 +10,10 @@ from hashlib import sha256
 from onnx import ModelProto
 
 from ..utility import (PathInput)
-
 from ..exceptions import (InvalidOnnxPackageError, InvalidOnnxModelError, UnsupportedOnnxModelError)
 
 from manifest import (NgravManifest, BaseInfo, OnnxModelInfo)
+from fingerprint import construct_architecture_fingerprint
 
 from ngrav.model import OnnxSourceSnapshot
 
@@ -202,8 +202,8 @@ class NgravPacket:
         )
 
     @staticmethod
-    def _construct_fingerprint(model: ModelProto) ->  bytes:
-        return ""
+    def _construct_fingerprint(model: ModelProto) -> bytes:
+        return construct_architecture_fingerprint(model)
 
     #==================================================================================================================
     # NGRAV PACKET: Instance Methods
@@ -236,7 +236,11 @@ class NgravPacket:
         # HELPER-METHOD
         # Check if the internal variable '_fingerprint' is instantialized - If not, load it into memory (Lazy loading feature).
         if self._fingerprint is None:
-            self._fingerprint = self._construct_fingerprint(self._get_model())
+
+            fingerprint_digest = self._construct_fingerprint(self._get_model())
+            fingerprint_str = f"sha256:{fingerprint_digest.hex()}"
+
+            self._fingerprint = fingerprint_str
         
         return self._fingerprint
 
