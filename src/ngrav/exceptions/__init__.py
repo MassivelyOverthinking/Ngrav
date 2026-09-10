@@ -2,7 +2,7 @@
 # IMPORTS
 #==================================================================================================================
 
-from .exceptions import InvalidOnnxModelError, InvalidOnnxPackageError, UnsupportedOnnxModelError
+from .exceptions import (InvalidOnnxModelError, InvalidOnnxPackageError, UnsupportedOnnxModelError, NgravExecutionError)
 
 #==================================================================================================================
 # PACKAGE MANAGEMENT
@@ -11,7 +11,8 @@ from .exceptions import InvalidOnnxModelError, InvalidOnnxPackageError, Unsuppor
 __all__ = [
     "InvalidOnnxModelError",
     "InvalidOnnxPackageError",
-    "UnsupportedOnnxModelError"
+    "UnsupportedOnnxModelError",
+    "NgravExecutionError"
 ]
 __author__ = "HysingerDev"
 __version__ = "0.1.0"

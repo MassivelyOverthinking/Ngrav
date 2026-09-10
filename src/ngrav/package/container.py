@@ -4,13 +4,16 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pathlib import Path
 from hashlib import sha256
 
+import onnxruntime as ort
 from onnx import ModelProto
 
-from ..utility import (PathInput)
-from ..exceptions import (InvalidOnnxPackageError, InvalidOnnxModelError, UnsupportedOnnxModelError)
+from ..utility import (PathInput, TensorInput)
+from ..exceptions import (InvalidOnnxPackageError, InvalidOnnxModelError, UnsupportedOnnxModelError, NgravExecutionError)
 
 from manifest import (NgravManifest, BaseInfo, OnnxModelInfo)
 from fingerprint import construct_architecture_fingerprint
@@ -42,6 +45,7 @@ class NgravPacket:
         "_model", 
         "_manifest", 
         "_fingerprint",
+        "_session",
         "_valid_onnx"
     )
 
@@ -62,6 +66,7 @@ class NgravPacket:
         self._manifest = manifest
         self._fingerprint = fingerprint
         self._valid_onnx = valid_onnx
+        self._session: ort.InferenceSession | None = None
 
     #==================================================================================================================
     # NGRAV PACKET: Properties
@@ -73,8 +78,7 @@ class NgravPacket:
         String title attached to the Ngrav Packet-object
          
         ----- Returns -----
-        Str
-             
+        str 
         """
         return self._title
     
@@ -85,7 +89,6 @@ class NgravPacket:
 
         ----- Returns -----
         Onnx.ModelProto
-    
         """
 
         return self._get_model()
@@ -97,7 +100,6 @@ class NgravPacket:
         
         ----- Returns -----
         NgravManifest
-            
         """
 
         return self._get_manifest()
@@ -108,7 +110,7 @@ class NgravPacket:
         Deterministic Hash-fingerprint based on internal ONNX model architecture.
                  
         ----- Returns -----
-        Str 
+        str 
         """
 
         return self._get_fingerprint()
@@ -120,10 +122,22 @@ class NgravPacket:
         
         ----- Returns -----
         pathlib.Path
-            
         """
 
         return self._source.source_path
+
+    @property
+    def is_loaded(self) -> bool:
+        """
+        Return True if the internal ONNX model has been loaded into memory.
+
+        Lazy loading validation feature.
+                
+        ----- Returns -----
+        bool
+        """
+
+        return self._model is None
 
     #==================================================================================================================
     # NGRAV PACKET: Class Methods
@@ -209,8 +223,82 @@ class NgravPacket:
     # NGRAV PACKET: Instance Methods
     #==================================================================================================================
 
+    def run(self, inputs: TensorInput) -> dict[str, Any]:
+        """
+        Run inference using the packet's ONNX model.
+
+        Parameters
+        ----------
+        inputs:
+            Mapping of ONNX input names to NumPy arrays.
+
+        Returns
+        -------
+        dict[str, Any]
+            Mapping of ONNX output names to their produced values.
+
+        Raises
+        ------
+        TypeError
+            If `inputs` is not a mapping or contains invalid input names.
+
+        NgravExecutionError
+            If ONNX Runtime cannot execute the model.
+        """
+        if not isinstance(inputs, TensorInput):
+            raise TypeError(f"Inputs must be of Type: TensorInput - Received dtype: {type(inputs).__name__}")
+
+        if not all(isinstance(name, str) for name in inputs):
+            raise TypeError(f"ONNX inputs names must be of Type: str")
+
+        session = self._get_session()
+
+        try:
+            results = session.run(None, dict(inputs))
+        except Exception:
+            raise NgravExecutionError(f"ONNX model execution failed")
+
+        output_names = [
+            output.name
+            for output in session.get_outputs()
+        ]
+
+        return dict(
+            zip(
+                output_names,
+                results,
+                strict=True
+            )
+        )
+    
     def compare(self, other: NgravPacket) -> None:
         pass
+
+    def save_model(self, filepath: PathInput) -> None:
+        if not isinstance(filepath, PathInput):
+            raise TypeError(f"Path input must be of Type: PathInput - Received dtype: {type(filepath).__name__}")
+
+        model_path = Path(filepath)   # Convert the parameter input to valid Path-object
+        
+        # Validate Path-object - Path exists.
+        if not model_path.exists():
+            raise FileNotFoundError(f"Requested filepath doens't exist - {model_path}")
+
+    def save_manifest(self, filepath: PathInput, format: str | None = "yaml") -> None:
+        if not isinstance(filepath, PathInput):
+            raise TypeError(f"Path input must be of Type: PathInput - Received dtype: {type(filepath).__name__}")
+
+        if not isinstance(format, str):
+            raise TypeError(f"Format must be of Type: Str - Received dtype: {type(format).__name__}")
+
+        if format.lower() not in ("yaml", "json"):
+            raise ValueError(f"Requested manifest format not supported: {format} - Supported format-types: ['yaml', 'json']")
+        
+        model_path = Path(filepath)   # Convert the parameter input to valid Path-object
+                
+        # Validate Path-object - Path exists.
+        if not model_path.exists():
+            raise FileNotFoundError(f"Requested filepath doens't exist - {model_path}")
 
     #==================================================================================================================
     # NGRAV PACKET: Helper Functions
@@ -232,15 +320,24 @@ class NgravPacket:
     
         return self._manifest
 
+    def _get_session(self) -> ort.InferenceSession:
+        # HELPER-METHOD
+        # Check if the internal variable '_session' is instantialized - If not, load it into memory (Lazy loading feature).
+        if self._session is None:
+            try:
+                self._session = ort.InferenceSession(self._source.model_bytes)
+            except Exception:
+                raise NgravExecutionError(f"Failed to initialze ONNX Runtime inference session")
+
+        self._session
+
     def _get_fingerprint(self) -> str:
         # HELPER-METHOD
         # Check if the internal variable '_fingerprint' is instantialized - If not, load it into memory (Lazy loading feature).
         if self._fingerprint is None:
 
             fingerprint_digest = self._construct_fingerprint(self._get_model())
-            fingerprint_str = f"sha256:{fingerprint_digest.hex()}"
-
-            self._fingerprint = fingerprint_str
+            self._fingerprint = f"sha256:{fingerprint_digest.hex()}"
         
         return self._fingerprint
 

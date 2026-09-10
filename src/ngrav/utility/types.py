@@ -2,12 +2,14 @@
 # IMPORTS
 #==================================================================================================================
 
-from pathlib import Path
+import numpy as np
 
-import typing
+from pathlib import Path
+from typing import Mapping
 
 #==================================================================================================================
 # CUSTOM DTYPES
 #==================================================================================================================
 
 type PathInput = Path | str
+type TensorInput = Mapping[str, np.ndarray]
