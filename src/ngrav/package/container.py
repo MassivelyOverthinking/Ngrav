@@ -2,6 +2,9 @@
 # IMPORTS
 #==================================================================================================================
 
+import yaml
+import json
+
 from __future__ import annotations
 
 from typing import Any
@@ -303,20 +306,73 @@ class NgravPacket:
         model_path.write_bytes(self._source.model_bytes)    # Write model bytes to '.onnx' file.
 
     def save_manifest(self, filepath: PathInput, format: str | None = "yaml") -> None:
+        """
+        Serialize the packet manifest to YAML or JSON.
+
+        Accessing ``self.manifest`` lazily constructs the manifest when required.
+        Saving does not alter or remove the manifest stored by the NgravPacket.
+
+        Parameters
+        ----------
+        filepath:
+            Destination path for the manifest.
+
+        format:
+            Serialization format. Supported values are ``"yaml"`` and ``"json"``.
+        """
         if not isinstance(filepath, PathInput):
             raise TypeError(f"Path input must be of Type: PathInput - Received dtype: {type(filepath).__name__}")
 
         if not isinstance(format, str):
             raise TypeError(f"Format must be of Type: Str - Received dtype: {type(format).__name__}")
 
-        if format.lower() not in ("yaml", "json"):
+        normalized_format = format.lower()
+
+        if normalized_format not in {"yaml", "json"}:
             raise ValueError(f"Requested manifest format not supported: {format} - Supported format-types: ['yaml', 'json']")
         
-        model_path = Path(filepath)   # Convert the parameter input to valid Path-object
+        manifest_path = Path(filepath)   # Convert the parameter input to valid Path-object
                 
-        # Validate Path-object - Path exists.
-        if not model_path.exists():
-            raise FileNotFoundError(f"Requested filepath doens't exist - {model_path}")
+        if not manifest_path.parent.exists():
+            raise FileNotFoundError(f"Destination directory does not exist: {manifest_path.parent}")
+
+        if not manifest_path.parent.is_dir():
+            raise NotADirectoryError(f"Destination parent is not a directory: {manifest_path.parent}")
+
+        if manifest_path.exists() and not manifest_path.is_file():
+            raise IsADirectoryError(f"Destination path is not a file - {manifest_path}")
+
+        expected_suffix = (".yaml" if normalized_format == "yaml" else ".json")
+
+        if manifest_path.suffix.lower() != expected_suffix:
+            raise ValueError(f"{normalized_format.upper()} manifest destination must use the '{expected_suffix}' extension - received: {manifest_path}")
+
+        # Calling the property intentionally triggers lazy manifest
+        # construction if it has not already been created.
+        manifest_data = self.manifest.model_dump(mode="json")
+
+        # Save internal ONNX model to '.yaml' file.
+        if normalized_format == "yaml":
+            with manifest_path.open("w", encoding="utf-8") as file:
+                yaml.safe_dump(
+                    manifest_data,
+                    file,
+                    sort_keys=False,
+                    allow_unicode=True,
+                )
+
+            return
+
+        # Save internal ONNX model to '.json' file.
+        with manifest_path.open("w", encoding="utf-8") as file:
+            json.dump(
+                manifest_data,
+                file,
+                indent=2,
+                ensure_ascii=False,
+            )
+
+            file.write("\n")
 
     #==================================================================================================================
     # NGRAV PACKET: Helper Functions
