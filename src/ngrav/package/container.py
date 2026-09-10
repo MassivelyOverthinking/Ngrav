@@ -225,17 +225,17 @@ class NgravPacket:
 
     def run(self, inputs: TensorInput) -> dict[str, Any]:
         """
-        Run inference using the packet's ONNX model.
+        Run inference using internal ONNX model.
 
         Parameters
         ----------
         inputs:
-            Mapping of ONNX input names to NumPy arrays.
+            Mapping of ONNX input values to NumPy arrays.
 
         Returns
         -------
         dict[str, Any]
-            Mapping of ONNX output names to their produced values.
+            Mapping of ONNX output values to respective results.
 
         Raises
         ------
@@ -243,7 +243,7 @@ class NgravPacket:
             If `inputs` is not a mapping or contains invalid input names.
 
         NgravExecutionError
-            If ONNX Runtime cannot execute the model.
+            Raised if interal ONNX Runtime inference session cannot execute the model.
         """
         if not isinstance(inputs, TensorInput):
             raise TypeError(f"Inputs must be of Type: TensorInput - Received dtype: {type(inputs).__name__}")
@@ -251,13 +251,16 @@ class NgravPacket:
         if not all(isinstance(name, str) for name in inputs):
             raise TypeError(f"ONNX inputs names must be of Type: str")
 
+        # Retrieve internal ONNX Runtime inferene session - Uses Lazy loading.
         session = self._get_session()
 
+        # Run the actual values through the interna ONNX Runtime inference session.
         try:
             results = session.run(None, dict(inputs))
         except Exception:
             raise NgravExecutionError(f"ONNX model execution failed")
 
+        # Map output values to their respective names retrieved from the inference session.
         output_names = [
             output.name
             for output in session.get_outputs()
@@ -275,14 +278,29 @@ class NgravPacket:
         pass
 
     def save_model(self, filepath: PathInput) -> None:
+        # Validate 'filepath' parameter dtype.
         if not isinstance(filepath, PathInput):
             raise TypeError(f"Path input must be of Type: PathInput - Received dtype: {type(filepath).__name__}")
 
         model_path = Path(filepath)   # Convert the parameter input to valid Path-object
+
+        # Validate model path extension uses '.onnx' standard.
+        if not model_path.suffix.lower() != ".onnx":
+            raise ValueError(f"Model destination must use the '.onnx' file extension: {model_path.parent}")
+
+        # Validate model parent directory exists.
+        if not model_path.parent.exists():
+            raise FileNotFoundError(f"Destination directory doesn't exist: {model_path.parent}")
+
+        # Validate model parent directory is a valid directory.
+        if not model_path.parent.is_dir():
+            raise NotADirectoryError(f"Destination parent is not a directory: {model_path.parent}")
         
-        # Validate Path-object - Path exists.
-        if not model_path.exists():
-            raise FileNotFoundError(f"Requested filepath doens't exist - {model_path}")
+        # Validate model path references a concrete file.
+        if model_path.exists() and not model_path.is_file():
+            raise IsADirectoryError(f"Destination path is not a file: {model_path}")
+
+        model_path.write_bytes(self._source.model_bytes)    # Write model bytes to '.onnx' file.
 
     def save_manifest(self, filepath: PathInput, format: str | None = "yaml") -> None:
         if not isinstance(filepath, PathInput):
