@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from hashlib import sha256
 
 from onnx import ModelProto
 
@@ -102,6 +103,17 @@ class NgravPacket:
         return self._get_manifest()
 
     @property
+    def fingerprint(self) -> str:
+        """
+        Deterministic Hash-fingerprint based on internal ONNX model architecture.
+                 
+        ----- Returns -----
+        Str 
+        """
+
+        return self._get_fingerprint()
+
+    @property
     def source_path(self) -> Path:
         """
         Path representation of the initial ONNX model filepath.
@@ -194,7 +206,14 @@ class NgravPacket:
         return ""
 
     #==================================================================================================================
-    # NGRAV PACKET: Instance functions
+    # NGRAV PACKET: Instance Methods
+    #==================================================================================================================
+
+    def compare(self, other: NgravPacket) -> None:
+        pass
+
+    #==================================================================================================================
+    # NGRAV PACKET: Helper Functions
     #==================================================================================================================
 
     def _get_model(self) -> ModelProto:
@@ -206,12 +225,20 @@ class NgravPacket:
         return self._model
 
     def _get_manifest(self) -> NgravManifest:
-            # HELPER-METHOD
-            # Check if the internal variable '_manifest' is instantialized - If not, load it into memory (Lazy loading feature).
-            if self._manifest is None:
-                self._manifest = self._construct_manifest(self._source.source_path, self._get_model())
+        # HELPER-METHOD
+        # Check if the internal variable '_manifest' is instantialized - If not, load it into memory (Lazy loading feature).
+        if self._manifest is None:
+            self._manifest = self._construct_manifest(self._source.source_path, self._get_model())
     
-            return self._manifest
+        return self._manifest
+
+    def _get_fingerprint(self) -> str:
+        # HELPER-METHOD
+        # Check if the internal variable '_fingerprint' is instantialized - If not, load it into memory (Lazy loading feature).
+        if self._fingerprint is None:
+            self._fingerprint = self._construct_fingerprint(self._get_model())
+        
+        return self._fingerprint
 
     #==================================================================================================================
     # NGRAV PACKET: Magic Methods
@@ -229,12 +256,11 @@ class NgravPacket:
         model_state = ("loaded" if self._model is not None else "not-loaded")
 
         return (
-            f"{self.__class__.__name__}("
+            f"<{self.__class__.__name__}>"
             f"title={self._title!r}, "
-            f"mource_path={str(self._source_path)!r}, "
+            f"source_path={str(self._source_path)!r}, "
             f"model={model_state!r}, "
             f"fingerprint={fingerprint!r}"
-            f")"
     )
 
     def __eq__(self, other: object) -> bool:
