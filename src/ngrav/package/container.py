@@ -57,10 +57,11 @@ class NgravPacket:
         source: OnnxSourceSnapshot, 
         source_path: PathInput, 
         title: str | None = None,
-        *,
+        *args,
         manifest: NgravManifest | None = None,
         fingerprint: str | None = None,
-        valid_onnx: bool = True
+        valid_onnx: bool = True,
+        **kwargs
     ):
         self._source = source
         self._source_path = Path(source_path)
