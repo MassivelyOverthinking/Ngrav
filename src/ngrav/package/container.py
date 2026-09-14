@@ -8,6 +8,9 @@ import json
 from __future__ import annotations
 
 from typing import Any
+from datetime import datetime, UTC
+from time import perf_counter_ns
+from uuid import UUID, uuid4
 
 from pathlib import Path
 from hashlib import sha256
@@ -15,14 +18,14 @@ from hashlib import sha256
 import onnxruntime as ort
 from onnx import ModelProto
 
-from ..utility import (PathInput, TensorInput)
+from ..utility import (PathInput, TensorInput, get_initial_execution_metadata)
 from ..exceptions import (InvalidOnnxPackageError, InvalidOnnxModelError, UnsupportedOnnxModelError, NgravExecutionError)
 
 from manifest import (NgravManifest, BaseInfo, OnnxModelInfo)
 from fingerprint import construct_architecture_fingerprint
 
 from ngrav.model import OnnxSourceSnapshot
-from ngrav.history import ExecutionHistory
+from ngrav.history import ExecutionHistory, ExecutionRecord
 
 #==================================================================================================================
 # NGRAV BASE CONTAINER
@@ -157,6 +160,19 @@ class NgravPacket:
         """
         self._history
 
+    @property
+    def last_execution(self) -> ExecutionRecord | None:
+        """
+        Returns the record of the last execution.
+                                
+        ----- Returns -----
+        ngrav.ExecutionRecord
+        """
+
+        if not self._history.records:
+            return None
+
+        return self._history.records[-1]
     #==================================================================================================================
     # NGRAV PACKET: Class Methods
     #==================================================================================================================
@@ -265,6 +281,10 @@ class NgravPacket:
         NgravExecutionError
             Raised if interal ONNX Runtime inference session cannot execute the model.
         """
+
+        # Get execution metadata - UUID, Start time, NS counter
+        execution_id, started_at, started_ns = get_initial_execution_metadata()
+
         if not isinstance(inputs, TensorInput):
             raise TypeError(f"Inputs must be of Type: TensorInput - Received dtype: {type(inputs).__name__}")
 

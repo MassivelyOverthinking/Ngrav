@@ -2,17 +2,17 @@
 # IMPORTS
 #==================================================================================================================
 
-from types import PathInput, TensorInput
-from functions import get_initial_execution_metadata
+from uuid import uuid4
+from datetime import UTC, datetime
+from time import perf_counter_ns
 
 #==================================================================================================================
-# PACKAGE MANAGEMENT
+# UTILITY FUNCTIONS
 #==================================================================================================================
 
-__all__ = [
-    "PathInput",
-    "TensorInput",
-    "get_initial_execution_metadata"
-]
-__author__ = "HysingerDev"
-__version__ = "0.1.0"
+def get_initial_execution_metadat(self):
+    execution_id = uuid4()
+    started_at = datetime.now(UTC)
+    started_ns = perf_counter_ns()
+
+    return execution_id, started_at, started_ns
