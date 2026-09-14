@@ -22,6 +22,7 @@ from manifest import (NgravManifest, BaseInfo, OnnxModelInfo)
 from fingerprint import construct_architecture_fingerprint
 
 from ngrav.model import OnnxSourceSnapshot
+from ngrav.history import ExecutionHistory
 
 #==================================================================================================================
 # NGRAV BASE CONTAINER
@@ -49,13 +50,15 @@ class NgravPacket:
         "_manifest", 
         "_fingerprint",
         "_session",
-        "_valid_onnx"
+        "_valid_onnx",
+        "_history"
     )
 
     def __init__(
         self, 
         source: OnnxSourceSnapshot, 
         source_path: PathInput, 
+        history: ExecutionHistory,
         title: str | None = None,
         *args,
         manifest: NgravManifest | None = None,
@@ -71,6 +74,7 @@ class NgravPacket:
         self._fingerprint = fingerprint
         self._valid_onnx = valid_onnx
         self._session: ort.InferenceSession | None = None
+        self._history = history
 
     #==================================================================================================================
     # NGRAV PACKET: Properties
@@ -143,6 +147,16 @@ class NgravPacket:
 
         return self._model is None
 
+    @property
+    def history(self) -> ExecutionHistory:
+        """
+        Returns an overview of the NgravPacke's complete execution history complete with a comprehensive suite of metadata.
+                        
+        ----- Returns -----
+        ngrav.ExecutionHistory
+        """
+        self._history
+
     #==================================================================================================================
     # NGRAV PACKET: Class Methods
     #==================================================================================================================
@@ -176,8 +190,10 @@ class NgravPacket:
 
         # Construct a deterministic ONNX model snapshot for model initialization (Lazy loading feature)
         source = OnnxSourceSnapshot.from_path(filepath=final_path)
+        history = ExecutionHistory.create()
 
         return cls(
+            history=history,
             source=source,
             title=title,
             valid_onnx=True
@@ -373,6 +389,72 @@ class NgravPacket:
                 ensure_ascii=False,
             )
 
+            file.write("\n")
+
+    def save_history(self, filepath: PathInput, format: str | None = "yaml") -> None:
+        """
+        Serialize the packet execution history to YAML or JSON.
+        
+        Parameters
+        ----------
+        filepath:
+        Destination path for the execution history.
+        
+        format:
+        Serialization format. Supported values are ``"yaml"`` and ``"json"``.
+        """
+        if not isinstance(filepath, PathInput):
+            raise TypeError(f"Path input must be of Type: PathInput - Received dtype: {type(filepath).__name__}")
+        
+        if not isinstance(format, str):
+            raise TypeError(f"Format must be of Type: Str - Received dtype: {type(format).__name__}")
+        
+        normalized_format = format.lower()
+        
+        if normalized_format not in {"yaml", "json"}:
+            raise ValueError(f"Requested manifest format not supported: {format} - Supported format-types: ['yaml', 'json']")
+                
+        history_path = Path(filepath)   # Convert the parameter input to valid Path-object
+                        
+        if not history_path.parent.exists():
+            raise FileNotFoundError(f"Destination directory does not exist: {history_path.parent}")
+        
+        if not history_path.parent.is_dir():
+            raise NotADirectoryError(f"Destination parent is not a directory: {history_path.parent}")
+        
+        if history_path.exists() and not history_path.is_file():
+            raise IsADirectoryError(f"Destination path is not a file - {history_path}")
+        
+        expected_suffix = (".yaml" if normalized_format == "yaml" else ".json")
+        
+        if history_path.suffix.lower() != expected_suffix:
+            raise ValueError(f"{normalized_format.upper()} manifest destination must use the '{expected_suffix}' extension - received: {history_path}")
+
+        # Calling the property intentionally triggers lazy manifest
+        # construction if it has not already been created.
+        history_data = self.manifest.model_dump(mode="json")
+        
+        # Save internal NgravPacket execution history to '.yaml' file.
+        if normalized_format == "yaml":
+            with history_path.open("w", encoding="utf-8") as file:
+                yaml.safe_dump(
+                    history_data,
+                    file,
+                    sort_keys=False,
+                    allow_unicode=True,
+                )
+        
+            return
+        
+        # Save internal NgravPacket execution history to '.json' file.
+        with history_path.open("w", encoding="utf-8") as file:
+            json.dump(
+                history_data,
+                file,
+                indent=2,
+                ensure_ascii=False,
+            )
+        
             file.write("\n")
 
     #==================================================================================================================

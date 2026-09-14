@@ -4,21 +4,11 @@
 
 from __future__ import annotations
 
-import json
-import yaml
-import platform
-import sys
-
-from typing import Any
-from pathlib import Path
 from datetime import UTC, datetime
 from enum import StrEnum
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
-import onnxruntime as ort
-
-from ngrav.utility import PathInput
 
 #==================================================================================================================
 # EXECUTION HISTORY: Schemas & Pydantic Models
@@ -42,6 +32,7 @@ class TensorExecutionInfo(BaseModel):
     dtype: str
     nbytes: int | None = None
 
+# Pydantic Schema ==> ONNX runtime execution data
 class ExecutionRuntimeInfo(BaseModel):
     """
     Metadata schema ONNX runtime data.
@@ -54,9 +45,10 @@ class ExecutionRuntimeInfo(BaseModel):
     python_version: str
     platform: str
 
+# Pydantic Schema ==> Runtime-related error/exception data
 class ExecutionErrorInfo(BaseModel):
     """
-    Metadata schme for execution-related error/exception data.
+    Metadata schema for execution-related error/exception data.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -65,7 +57,12 @@ class ExecutionErrorInfo(BaseModel):
     message: str
     code: str | None = None
 
+# Pydantic Schema ==> Final execution snapshot
 class ExecutionRecord(BaseModel):
+    """
+    Metadata schema for complete execution-related data.
+    """
+    
     model_config = ConfigDict(frozen=True)
 
     execution_id: UUID = Field(default_factory=uuid4)
@@ -85,4 +82,31 @@ class ExecutionRecord(BaseModel):
     output_bytes: int = Field(decimal_places=0, ge=0)
 
     error: ExecutionErrorInfo | None = None
+
+# Data Class ==> Complete execution history
+class ExecutionHistory(BaseModel):
+    """
+    Data class depicting the complete execution history of NgravPacket.
+    """
+
+    records: list[ExecutionRecord] = Field(default_factory=list)
+
+    @classmethod
+    def create(cls) -> ExecutionHistory:
+        return cls()
+
+    def append(self, record: ExecutionRecord) -> None:
+        if not isinstance(record, ExecutionRecord):
+            raise TypeError(f"Records must be of Type: ExecutionRecord - REceived dtype: {type(record).__name__}")
+
+        self.records.append(record)
+
+    def __len__(self) -> int:
+        return len(self.records)
+
+    def __iter__(self):
+        return iter(self.records)
+
+    def __getitem__(self, index: int) -> ExecutionRecord:
+        return self.records[index]
 
