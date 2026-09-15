@@ -4,6 +4,7 @@
 
 import yaml
 import json
+import numpy as np
 
 from __future__ import annotations
 
@@ -25,7 +26,7 @@ from manifest import (NgravManifest, BaseInfo, OnnxModelInfo)
 from fingerprint import construct_architecture_fingerprint
 
 from ngrav.model import OnnxSourceSnapshot
-from ngrav.history import ExecutionHistory, ExecutionRecord
+from ngrav.history import ExecutionHistory, ExecutionRecord, describe_tensor_values, describe_runtime_info, describe_execution_error
 
 #==================================================================================================================
 # NGRAV BASE CONTAINER
@@ -285,34 +286,44 @@ class NgravPacket:
         # Get execution metadata - UUID, Start time, NS counter
         execution_id, started_at, started_ns = get_initial_execution_metadata()
 
-        if not isinstance(inputs, TensorInput):
-            raise TypeError(f"Inputs must be of Type: TensorInput - Received dtype: {type(inputs).__name__}")
+        input_info = []
+        output_info = []
 
-        if not all(isinstance(name, str) for name in inputs):
-            raise TypeError(f"ONNX inputs names must be of Type: str")
-
-        # Retrieve internal ONNX Runtime inferene session - Uses Lazy loading.
-        session = self._get_session()
-
-        # Run the actual values through the interna ONNX Runtime inference session.
         try:
-            results = session.run(None, dict(inputs))
-        except Exception:
-            raise NgravExecutionError(f"ONNX model execution failed")
+            if not isinstance(inputs, TensorInput):
+                raise TypeError(f"Inputs must be of Type: TensorInput - Received dtype: {type(inputs).__name__}")
 
-        # Map output values to their respective names retrieved from the inference session.
-        output_names = [
-            output.name
-            for output in session.get_outputs()
-        ]
+            if not all(isinstance(name, str) for name in inputs):
+                raise TypeError(f"ONNX inputs names must be of Type: str")
 
-        return dict(
-            zip(
-                output_names,
-                results,
-                strict=True
+            input_info = [
+                
+            ]
+
+            # Retrieve internal ONNX Runtime inferene session - Uses Lazy loading.
+            session = self._get_session()
+
+            # Run the actual values through the interna ONNX Runtime inference session.
+            try:
+                results = session.run(None, dict(inputs))
+            except Exception:
+                raise NgravExecutionError(f"ONNX model execution failed")
+
+            # Map output values to their respective names retrieved from the inference session.
+            output_names = [
+                output.name
+                for output in session.get_outputs()
+            ]
+
+            return dict(
+                zip(
+                    output_names,
+                    results,
+                    strict=True
+                )
             )
-        )
+        except Exception:
+            pass
     
     def compare(self, other: NgravPacket) -> None:
         pass

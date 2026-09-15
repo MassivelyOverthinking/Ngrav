@@ -41,7 +41,7 @@ class ExecutionRuntimeInfo(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     runtime_version: str
-    provider: list[str]
+    providers: list[str]
     python_version: str
     platform: str
 
