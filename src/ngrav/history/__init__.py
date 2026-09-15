@@ -2,7 +2,7 @@
 # IMPORTS
 #==================================================================================================================
 
-from .runs import ExecutionRecord, ExecutionHistory
+from .runs import ExecutionRecord, ExecutionHistory, ExecutionStatus
 from .builders import describe_tensor_values, describe_runtime_info, describe_execution_error
 
 #==================================================================================================================
@@ -12,6 +12,7 @@ from .builders import describe_tensor_values, describe_runtime_info, describe_ex
 __all__ = [
     "ExecutionRecord",
     "ExecutionHistory",
+    "ExecutionStatus",
     "describe_tensor_values",
     "describe_runtime_info",
     "describe_execution_error"

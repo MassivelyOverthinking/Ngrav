@@ -26,7 +26,7 @@ from manifest import (NgravManifest, BaseInfo, OnnxModelInfo)
 from fingerprint import construct_architecture_fingerprint
 
 from ngrav.model import OnnxSourceSnapshot
-from ngrav.history import ExecutionHistory, ExecutionRecord, describe_tensor_values, describe_runtime_info, describe_execution_error
+from ngrav.history import (ExecutionHistory, ExecutionRecord, ExecutionStatus, describe_tensor_values, describe_runtime_info, describe_execution_error)
 
 #==================================================================================================================
 # NGRAV BASE CONTAINER
@@ -297,7 +297,11 @@ class NgravPacket:
                 raise TypeError(f"ONNX inputs names must be of Type: str")
 
             input_info = [
-                
+                describe_tensor_values(
+                    name=name,
+                    value=value,
+                )
+                for name, value in inputs.items()
             ]
 
             # Retrieve internal ONNX Runtime inferene session - Uses Lazy loading.
@@ -315,15 +319,70 @@ class NgravPacket:
                 for output in session.get_outputs()
             ]
 
-            return dict(
+            results = dict(
                 zip(
                     output_names,
                     results,
                     strict=True
                 )
             )
-        except Exception:
-            pass
+
+            output_info = [
+                describe_tensor_values(
+                    name=name,
+                    value=value,
+                )
+                for name, value in results.items()
+            ]
+
+            finished_at = datetime.now(UTC)
+
+            duration_ms = (perf_counter_ns() - started_ns) / 1_000_000
+
+            self._history.append(
+                ExecutionRecord(
+                    execution_id=execution_id,
+                    status=ExecutionStatus.SUCCESS,
+                    started_at=started_at,
+                    finished_at=finished_at,
+                    duration_ms=duration_ms,
+                    fingerprint=self._fingerprint,
+                    runtime=describe_runtime_info(session.get_providers()),
+                    inputs=input_info,
+                    outputs=output_info,
+                    input_bytes=sum(item.nbytes or 0 for item in input_info),
+                    output_bytes=sum(item.nbytes or 0 for item in output_info),
+                )
+            )
+
+            return results
+        except Exception as exec:
+            finished_at = datetime.now(UTC)
+
+            duration_ms = (perf_counter_ns() - started_ns) / 1_000_000
+
+            providers = [
+                session.get_providers() if session is not None else []
+            ]
+
+            self._history.append(
+                ExecutionRecord(
+                    execution_id=execution_id,
+                    status=ExecutionStatus.FAILURE,
+                    started_at=started_at,
+                    finished_at=finished_at,
+                    duration_ms=duration_ms,
+                    fingerprint=self._fingerprint,
+                    runtime=describe_runtime_info(providers=providers),
+                    inputs=input_info,
+                    outputs=output_info,
+                    input_bytes=sum(item.nbytes or 0 for item in input_info),
+                    output_bytes=sum(item.nbytes or 0 for item in output_info),
+                    error=describe_execution_error(exec=exec)
+                )
+            )
+
+            raise
     
     def compare(self, other: NgravPacket) -> None:
         pass
