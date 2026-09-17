@@ -2,6 +2,8 @@
 # IMPORTS
 #==================================================================================================================
 
+import sys
+import platform
 import yaml
 import json
 import numpy as np
@@ -22,7 +24,7 @@ from onnx import ModelProto
 from ..utility import (PathInput, TensorInput, get_initial_execution_metadata)
 from ..exceptions import (InvalidOnnxPackageError, InvalidOnnxModelError, UnsupportedOnnxModelError, NgravExecutionError)
 
-from manifest import (NgravManifest, BaseInfo, OnnxModelInfo)
+from manifest import (NgravManifest, BaseInfo, OnnxModelInfo, RuntimeInfo)
 from fingerprint import construct_architecture_fingerprint
 
 from ngrav.model import OnnxSourceSnapshot
@@ -49,7 +51,8 @@ class NgravPacket:
     __slots__ = (
         "_source",
         "_source_path", 
-        "_title", 
+        "_title",
+        "_description",
         "_model", 
         "_manifest", 
         "_fingerprint",
@@ -64,6 +67,7 @@ class NgravPacket:
         source_path: PathInput, 
         history: ExecutionHistory,
         title: str | None = None,
+        description: str | None = None,
         *args,
         manifest: NgravManifest | None = None,
         fingerprint: str | None = None,
@@ -73,6 +77,7 @@ class NgravPacket:
         self._source = source
         self._source_path = Path(source_path)
         self._title = str(source_path) if title is None else title
+        self._description = description
         self._model: ModelProto | None = None
         self._manifest = manifest
         self._fingerprint = fingerprint
@@ -92,6 +97,7 @@ class NgravPacket:
         ----- Returns -----
         str 
         """
+
         return self._title
     
     @property
@@ -159,6 +165,7 @@ class NgravPacket:
         ----- Returns -----
         ngrav.ExecutionHistory
         """
+
         self._history
 
     @property
@@ -174,12 +181,13 @@ class NgravPacket:
             return None
 
         return self._history.records[-1]
+    
     #==================================================================================================================
     # NGRAV PACKET: Class Methods
     #==================================================================================================================
 
     @classmethod
-    def from_onnx(cls, model_path: PathInput, title: str | None) -> NgravPacket:
+    def from_onnx(cls, model_path: PathInput, title: str | None, description: str | None = None) -> NgravPacket:
         """
         Construct an in-memory NgravPackage from an ONNX file.
 
@@ -193,6 +201,9 @@ class NgravPacket:
         if title is not None and not isinstance(title, str):
             raise TypeError(f"Title should be Type: Str - Received dtype: {type(title).__name__}")
 
+        if description is not None and not isinstance(title, str):
+            raise TypeError(f"Description should be Type: Str - Received dtype: {type(description).__name__}")
+
         final_path = Path(model_path)   # Convert the parameter input to valid Path-object
 
         # Validate Path-object - File exists, is file, file is ONNX format
@@ -200,7 +211,7 @@ class NgravPacket:
             raise FileNotFoundError(f"Requested ONNX model file doesn't not exist - {final_path}")
 
         if not final_path.is_file():
-                    raise ValueError(f"Object received is not a valid file format - {final_path}")
+            raise ValueError(f"Object received is not a valid file format - {final_path}")
 
         if final_path.suffix.lower() != ".onnx":
             raise ValueError(f"Requested model file is not a valid ONNX format - {final_path}")
@@ -213,6 +224,7 @@ class NgravPacket:
             history=history,
             source=source,
             title=title,
+            description=description,
             valid_onnx=True
         )
 
@@ -221,7 +233,7 @@ class NgravPacket:
     #==================================================================================================================
 
     @staticmethod
-    def _construct_manifest(model_source: Path, model: ModelProto) -> NgravManifest:
+    def _construct_manifest(model_source: Path, model: ModelProto, title: str | None = None, description: str | None = None) -> NgravManifest:
         """
         Extract the first small set of reproducibility metadata.
 
@@ -245,11 +257,18 @@ class NgravPacket:
             opsets=opoperator_sets,
         )
 
+        runtime_info = RuntimeInfo(
+            enngine_version=str(ort.__version__),
+            python_version=str(platform.python_version()),
+            python_implementation=str(platform.python_implementation())
+        )
+
         return NgravManifest(
-            name=model_source.stem,
+            name=str(model_source.stem) if title is None else title,
+            description=description,
             original_filename=model_source.name,
             valid_onnx=True,
-            onnx=onnx_info,
+            model=onnx_info,
         )
 
     @staticmethod
@@ -563,7 +582,7 @@ class NgravPacket:
         # HELPER-METHOD
         # Check if the internal variable '_manifest' is instantialized - If not, load it into memory (Lazy loading feature).
         if self._manifest is None:
-            self._manifest = self._construct_manifest(self._source.source_path, self._get_model())
+            self._manifest = self._construct_manifest(self._source.source_path, self._get_model(), self._title, self._description)
     
         return self._manifest
 

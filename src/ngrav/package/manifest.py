@@ -2,20 +2,36 @@
 # IMPORTS
 #==================================================================================================================
 
-from datetime import datetime, timezone
+from __future__ import annotations
+
+from datetime import datetime, UTC
 
 from pydantic import BaseModel, Field
 
 #==================================================================================================================
-# METADATA MANIFESTS
+# NGRAV METADATA: Core Manifest
 #==================================================================================================================
 
-class BaseInfo(BaseModel):
-    """Represents ONNX operator-set dependency."""
+class NgravManifest(BaseModel):
+    """Metadata describing a Ngrav package."""
 
-    domain: str
-    version: int
+    manifest_version: str = "0.1"
+    format: str = "ngrav"
 
+    name: str
+    description: str | None = None
+    original_filename: str
+    valid_onnx: bool = False
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+    runtime: RuntimeInfo
+    platform: PlatformInfo
+    model: OnnxModelInfo
+
+#==================================================================================================================
+# NGRAV METADATA: Onnx model info
+#==================================================================================================================
 
 class OnnxModelInfo(BaseModel):
     """Metadata read directly from the ONNX ModelProto."""
@@ -27,14 +43,40 @@ class OnnxModelInfo(BaseModel):
     graph_name: str | None = None
     opsets: list[BaseInfo] = Field(default_factory=list)
 
+class BaseInfo(BaseModel):
+    """Represents ONNX operator-set dependency."""
 
-class NgravManifest(BaseModel):
-    """Metadata describing a Ngrav package."""
+    domain: str
+    version: int
 
-    schema_version: str = "0.1"
+#==================================================================================================================
+# NGRAV METADATA: Runtime & Platform info
+#==================================================================================================================
+
+class RuntimeInfo(BaseModel):
+    """Metadata representing the runtime environment and model execution"""
+
+    engine_name: str = "onnxruntime"
+    enngine_version: str
+
+    python_version: str
+    python_implementation: str
+
+class DependencyInfo(BaseModel):
+    """Metadata representing current version dependecies"""
 
     name: str
-    original_filename: str
-    valid_onnx: bool = False
-    onnx: OnnxModelInfo
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    version: str
+
+class PlatformInfo(BaseModel):
+    """Metadata representing the current platform and dependencies"""
+
+    operating_system: str 
+    distribution: str
+    distribution_version: str
+    architecture: str
+
+    cpu_architecture: str
+    cpu_cores: int
+
+    dependencies: list[DependencyInfo] = Field(default_factory=list)
