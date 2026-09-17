@@ -32,6 +32,7 @@ class NgravManifest(BaseModel):
     runtime: RuntimeInfo
     platform: PlatformInfo
     model: OnnxModelInfo
+    history: ExecutionInfo
 
 #==================================================================================================================
 # NGRAV METADATA: Onnx model info
@@ -52,6 +53,49 @@ class BaseInfo(BaseModel):
 
     domain: str
     version: int
+
+#==================================================================================================================
+# NGRAV METADATA: Execution info
+#==================================================================================================================
+
+class ExecutionInfo(BaseModel):
+    """Metadata representing core elements of NgravPacket internal execution history"""
+
+    total_count: int = 0
+    successes: int = 0
+    failures: int = 0
+
+    total_latency_ms: float = 0.0
+    average_latency_ms: float = 0.0
+
+    last_execution: LastExecutionEntryInfo | None = None
+
+    def add_count(self, is_success: bool = True) -> None:
+        if is_success:
+            self.successes += 1
+        else:
+            self.successes += 1
+
+        self.total_count + 1
+
+    def add_latency(self, duration: float) -> None:
+        self.total_latency_ms += duration
+
+    def update_last_entry(self, id: str, duration: float, is_success: bool = True) -> None:
+        new_entry = LastExecutionEntryInfo(
+            id=id,
+            timestamp=datetime.now(UTC),
+            status="success" if is_success else "failure",
+            duration_ms=duration
+        )
+
+        self.last_execution = new_entry
+
+class LastExecutionEntryInfo(BaseModel):
+    id: str
+    timestamp: datetime
+    status: str
+    duration_ms: float
 
 #==================================================================================================================
 # NGRAV METADATA: Runtime & Platform info

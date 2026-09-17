@@ -24,7 +24,7 @@ from onnx import ModelProto
 from ..utility import (PathInput, TensorInput, get_initial_execution_metadata)
 from ..exceptions import (InvalidOnnxPackageError, InvalidOnnxModelError, UnsupportedOnnxModelError, NgravExecutionError)
 
-from manifest import (NgravManifest, BaseInfo, OnnxModelInfo, RuntimeInfo, PlatformInfo, DependencyInfo)
+from manifest import (NgravManifest, BaseInfo, OnnxModelInfo, RuntimeInfo, PlatformInfo, ExecutionInfo)
 from fingerprint import construct_architecture_fingerprint
 
 from ngrav.model import OnnxSourceSnapshot
@@ -263,6 +263,8 @@ class NgravPacket:
             python_implementation=str(platform.python_implementation())
         )
 
+        execution_info = ExecutionInfo()
+
         platform_info = PlatformInfo.get_data()
 
         return NgravManifest(
@@ -273,6 +275,7 @@ class NgravPacket:
             runtime=runtime_info,
             platform=platform_info,
             model=onnx_info,
+            history=execution_info
         )
 
     @staticmethod
