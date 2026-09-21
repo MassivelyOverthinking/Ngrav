@@ -381,6 +381,15 @@ class NgravPacket:
                 )
             )
 
+            # Update the ExecutionInfo in Ngrav Manifest
+            self._manifest.history.add_count(True)
+            self._manifest.history.add_latency(duration_ms)
+            self._manifest.history.update_last_entry(
+                id=execution_id,
+                duration=duration_ms,
+                is_success=bool
+            )
+
             return results
         except Exception as exec:
             finished_at = datetime.now(UTC)
@@ -406,6 +415,15 @@ class NgravPacket:
                     output_bytes=sum(item.nbytes or 0 for item in output_info),
                     error=describe_execution_error(exec=exec)
                 )
+            )
+
+            # Update the ExecutionInfo in Ngrav Manifest
+            self._manifest.history.add_count(False)
+            self._manifest.history.add_latency(duration_ms)
+            self._manifest.history.update_last_entry(
+                id=execution_id,
+                duration=duration_ms,
+                is_success=False
             )
 
             raise

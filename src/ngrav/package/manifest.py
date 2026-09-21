@@ -74,12 +74,15 @@ class ExecutionInfo(BaseModel):
         if is_success:
             self.successes += 1
         else:
-            self.successes += 1
+            self.failures += 1
 
         self.total_count + 1
 
     def add_latency(self, duration: float) -> None:
         self.total_latency_ms += duration
+
+        if self.total_count > 0:
+            self.average_latency_ms = self.average_latency_ms / self.total_count
 
     def update_last_entry(self, id: str, duration: float, is_success: bool = True) -> None:
         new_entry = LastExecutionEntryInfo(
