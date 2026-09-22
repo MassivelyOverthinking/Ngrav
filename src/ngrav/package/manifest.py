@@ -4,19 +4,60 @@
 
 from __future__ import annotations
 
+import json
+import yaml
 import platform
 import os
 
 from importlib.metadata import distributions
 from datetime import datetime, UTC
+from typing import Any
 
 from pydantic import BaseModel, Field
+
+#==================================================================================================================
+# NGRAV METADATA: Metadata Base Class
+#==================================================================================================================
+
+class NgravMetadataBaseModel(BaseModel):
+    """
+    Base class for Ngrav medata model ==> Inherits from Pydantic BaseModel
+    
+    Provides model serialization functionality to all children manifest models.
+    """
+
+    #==================================================================================================================
+    # Serialization
+    #==================================================================================================================
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return metadata as standard Python dictionary"""
+
+        return self.model_dump(mode="json")
+
+    def to_json(self, *, indent: int = 2) -> str:
+        """Return metadata as standard JSON object"""
+            
+        return json.dumps(
+            self.to_dict(),
+            indent=indent,
+            ensure_ascii=False
+        )
+
+    def to_yaml(self) -> str:
+        """Return metadata as standard YAML document"""
+                
+        return yaml.safe_dump(
+            self.to_dict(),
+            sort_keys=False,
+            allow_unicode=True
+        )
 
 #==================================================================================================================
 # NGRAV METADATA: Core Manifest
 #==================================================================================================================
 
-class NgravManifest(BaseModel):
+class NgravManifest(NgravMetadataBaseModel):
     """Metadata describing a Ngrav package."""
 
     manifest_version: str = "0.1"
@@ -38,7 +79,7 @@ class NgravManifest(BaseModel):
 # NGRAV METADATA: Onnx model info
 #==================================================================================================================
 
-class OnnxModelInfo(BaseModel):
+class OnnxModelInfo(NgravMetadataBaseModel):
     """Metadata read directly from the ONNX ModelProto."""
 
     ir_version: int
@@ -48,7 +89,7 @@ class OnnxModelInfo(BaseModel):
     graph_name: str | None = None
     opsets: list[BaseInfo] = Field(default_factory=list)
 
-class BaseInfo(BaseModel):
+class BaseInfo(NgravMetadataBaseModel):
     """Represents ONNX operator-set dependency."""
 
     domain: str
@@ -58,7 +99,7 @@ class BaseInfo(BaseModel):
 # NGRAV METADATA: Execution info
 #==================================================================================================================
 
-class ExecutionInfo(BaseModel):
+class ExecutionInfo(NgravMetadataBaseModel):
     """Metadata representing core elements of NgravPacket internal execution history"""
 
     total_count: int = 0
@@ -76,25 +117,23 @@ class ExecutionInfo(BaseModel):
         else:
             self.failures += 1
 
-        self.total_count + 1
+        self.total_count += 1
 
     def add_latency(self, duration: float) -> None:
         self.total_latency_ms += duration
 
         if self.total_count > 0:
-            self.average_latency_ms = self.average_latency_ms / self.total_count
+            self.average_latency_ms = (self.average_latency_ms / self.total_count)
 
     def update_last_entry(self, id: str, duration: float, is_success: bool = True) -> None:
-        new_entry = LastExecutionEntryInfo(
+        self.last_execution = LastExecutionEntryInfo(
             id=id,
             timestamp=datetime.now(UTC),
             status="success" if is_success else "failure",
             duration_ms=duration
         )
 
-        self.last_execution = new_entry
-
-class LastExecutionEntryInfo(BaseModel):
+class LastExecutionEntryInfo(NgravMetadataBaseModel):
     id: str
     timestamp: datetime
     status: str
@@ -104,22 +143,22 @@ class LastExecutionEntryInfo(BaseModel):
 # NGRAV METADATA: Runtime & Platform info
 #==================================================================================================================
 
-class RuntimeInfo(BaseModel):
+class RuntimeInfo(NgravMetadataBaseModel):
     """Metadata representing the runtime environment and model execution"""
 
     engine_name: str = "onnxruntime"
-    enngine_version: str
+    engine_version: str
 
     python_version: str
     python_implementation: str
 
-class DependencyInfo(BaseModel):
+class DependencyInfo(NgravMetadataBaseModel):
     """Metadata representing current version dependecies"""
 
     name: str
     version: str
 
-class PlatformInfo(BaseModel):
+class PlatformInfo(NgravMetadataBaseModel):
     """Metadata representing the current platform and dependencies"""
 
     operating_system: str 
