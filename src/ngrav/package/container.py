@@ -28,6 +28,7 @@ from fingerprint import construct_architecture_fingerprint
 
 from ngrav.model import OnnxSourceSnapshot
 from ngrav.history import (ExecutionHistory, ExecutionRecord, ExecutionStatus, describe_tensor_values, describe_runtime_info, describe_execution_error)
+from ngrav.contract import ModelContract, TensorSpec
 
 #==================================================================================================================
 # NGRAV BASE CONTAINER
@@ -57,7 +58,8 @@ class NgravPacket:
         "_fingerprint",
         "_session",
         "_valid_onnx",
-        "_history"
+        "_history",
+        "_contract"
     )
 
     def __init__(
@@ -71,6 +73,7 @@ class NgravPacket:
         manifest: NgravManifest | None = None,
         fingerprint: str | None = None,
         valid_onnx: bool = True,
+        contract: ModelContract | None = None,
         **kwargs
     ):
         self._source = source
@@ -83,6 +86,7 @@ class NgravPacket:
         self._valid_onnx = valid_onnx
         self._session: ort.InferenceSession | None = None
         self._history = history
+        self._contract = contract
 
     #==================================================================================================================
     # NGRAV PACKET: Properties
@@ -218,13 +222,15 @@ class NgravPacket:
         # Construct a deterministic ONNX model snapshot for model initialization (Lazy loading feature)
         source = OnnxSourceSnapshot.from_path(filepath=final_path)
         history = ExecutionHistory.create()
+        contract = ModelContract.create()
 
         return cls(
             history=history,
             source=source,
             title=title,
             description=description,
-            valid_onnx=True
+            valid_onnx=True,
+            contract=contract
         )
 
     #==================================================================================================================
@@ -429,6 +435,48 @@ class NgravPacket:
     
     def compare(self, other: NgravPacket) -> None:
         pass
+
+    def add_input_contract(
+        self, 
+        name: str,
+        dtype: str | None = None, 
+        shapes: list[int] | None = None,
+        min_value: float | None = None,
+        max_value: float | None = None,
+        allow_nan: bool = False,
+        allow_inf: bool = False,
+    ) -> None:
+        tensor_spec = TensorSpec(
+            dtype=dtype,
+            shape=shapes,
+            min_value=min_value,
+            max_value=max_value,
+            allow_nan=allow_nan,
+            allow_inf=allow_inf
+        )
+
+        self._contract.add_input_tensor_spec(name, tensor_spec)
+
+    def add_input_contract(
+        self, 
+        name: str,
+        dtype: str | None = None, 
+        shapes: list[int] | None = None,
+        min_value: float | None = None,
+        max_value: float | None = None,
+        allow_nan: bool = False,
+        allow_inf: bool = False,
+    ) -> None:
+        tensor_spec = TensorSpec(
+            dtype=dtype,
+            shape=shapes,
+            min_value=min_value,
+            max_value=max_value,
+            allow_nan=allow_nan,
+            allow_inf=allow_inf
+        )
+    
+        self._contract.add_output_tensor_spec(name, tensor_spec)
 
     def save_model(self, filepath: PathInput) -> None:
         # Validate 'filepath' parameter dtype.
