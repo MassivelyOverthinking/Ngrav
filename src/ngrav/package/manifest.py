@@ -24,9 +24,9 @@ from rich.table import Table
 
 class NgravMetadataBaseModel(BaseModel):
     """
-    Base class for Ngrav medata model ==> Inherits from Pydantic BaseModel
+    Base class for Ngrav medata model_info ==> Inherits from Pydantic BaseModel
     
-    Provides model serialization functionality to all children manifest models.
+    Provides model_info serialization functionality to all children manifest models.
     """
 
     #==================================================================================================================
@@ -129,13 +129,284 @@ class NgravManifest(NgravMetadataBaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
-    runtime: RuntimeInfo
+    runtime_info: runtime_infoInfo
     platform: PlatformInfo
-    model: OnnxModelInfo
-    history: ExecutionInfo
+    model_info: OnnxModelInfo
+    history_info: ExecutionInfo
+
+    # --------------------------------------------------------------------------------------------------------------
+    # Rich display
+    # --------------------------------------------------------------------------------------------------------------
+
+    def display(self, console: Console | None = None) -> None:
+        """Display the complete manifest metadata using Rich."""
+
+        if console is None:
+            console = Console()
+
+        console.print()
+
+        console.print(
+            Panel(
+                f"[bold cyan]{self.name}[/bold cyan]\n"
+                f"{self.description or 'No description'}",
+                title="NGRAV MANIFEST",
+                border_style="cyan",
+            )
+        )
+
+        # ------------------------------------------------------------------------------------------
+        # General information
+        # ------------------------------------------------------------------------------------------
+
+        General_info = Table(
+            title="General",
+            show_header=False,
+            expand=True,
+        )
+
+        General_info.add_column("Property", style="cyan")
+        General_info.add_column("Value")
+
+        General_info.add_row("Format", self.format)
+        General_info.add_row("Manifest version", self.manifest_version)
+        General_info.add_row("Original file", self.original_filename)
+        General_info.add_row(
+            "Valid ONNX",
+            "[green]Yes[/green]" if self.valid_onnx else "[red]No[/red]",
+        )
+        General_info.add_row("Created", self.created_at.isoformat())
+        General_info.add_row("Updated", self.updated_at.isoformat())
+
+        console.print(General_info)
+
+        # ------------------------------------------------------------------------------------------
+        # Model information
+        # ------------------------------------------------------------------------------------------
+
+        model_info = Table(
+            title="ONNX Model",
+            show_header=False,
+            expand=True,
+        )
+
+        model_info.add_column("Property", style="cyan")
+        model_info.add_column("Value")
+
+        model_info.add_row("IR version", str(self.model_info.ir_version))
+        model_info.add_row(
+            "Producer",
+            self.model_info.producer_name or "Unknown",
+        )
+        model_info.add_row(
+            "Producer version",
+            self.model_info.producer_version or "Unknown",
+        )
+        model_info.add_row(
+            "Model version",
+            str(self.model_info.model_version)
+            if self.model_info.model_version is not None
+            else "None",
+        )
+        model_info.add_row(
+            "Graph",
+            self.model_info.graph_name or "None",
+        )
+        model_info.add_row(
+            "Opsets",
+            str(len(self.model_info.opsets)),
+        )
+
+        console.print(model_info)
+
+        # ------------------------------------------------------------------------------------------
+        # Runtime Information
+        # ------------------------------------------------------------------------------------------
+
+        runtime_info = Table(
+            title="runtime_info",
+            show_header=False,
+            expand=True,
+        )
+
+        runtime_info.add_column("Property", style="cyan")
+        runtime_info.add_column("Value")
+
+        runtime_info.add_row(
+            "Engine",
+            self.runtime_info.engine_name,
+        )
+        runtime_info.add_row(
+            "Engine version",
+            self.runtime_info.engine_version,
+        )
+        runtime_info.add_row(
+            "Python",
+            self.runtime_info.python_version,
+        )
+        runtime_info.add_row(
+            "Implementation",
+            self.runtime_info.python_implementation,
+        )
+
+        console.print(runtime_info)
+
+        # ------------------------------------------------------------------------------------------
+        # Execution History Information
+        # ------------------------------------------------------------------------------------------
+
+        history_info = Table(
+            title="Execution History",
+            show_header=False,
+            expand=True,
+        )
+
+        history_info.add_column("Property", style="cyan")
+        history_info.add_column("Value")
+
+        history_info.add_row(
+            "Total executions",
+            str(self.history_info.total_count),
+        )
+        history_info.add_row(
+            "Successful",
+            f"[green]{self.history_info.successes}[/green]",
+        )
+        history_info.add_row(
+            "Failed",
+            f"[red]{self.history_info.failures}[/red]",
+        )
+        history_info.add_row(
+            "Total latency",
+            f"{self.history_info.total_latency_ms:.2f} ms",
+        )
+        history_info.add_row(
+            "Average latency",
+            f"{self.history_info.average_latency_ms:.2f} ms",
+        )
+
+        console.print(history_info)
+
+        if self.history_info.last_execution:
+            last = self.history_info.last_execution
+
+            last_execution = Table(
+                title="Last Execution",
+                show_header=False,
+                expand=True,
+            )
+
+            last_execution.add_column("Property", style="cyan")
+            last_execution.add_column("Value")
+
+            last_execution.add_row("ID", last.id)
+
+            status_style = (
+                "green"
+                if last.status == "success"
+                else "red"
+            )
+
+            last_execution.add_row(
+                "Status",
+                f"[{status_style}]{last.status}[/{status_style}]",
+            )
+
+            last_execution.add_row(
+                "Duration",
+                f"{last.duration_ms:.2f} ms",
+            )
+
+            last_execution.add_row(
+                "Timestamp",
+                last.timestamp.isoformat(),
+            )
+
+            console.print(last_execution)
+
+        console.print()
+
+    # --------------------------------------------------------------------------------------------------------------
+    # Dunder Methods
+    # --------------------------------------------------------------------------------------------------------------
+
+    def __repr__(self) -> str:
+        return (
+            f"NgravManifest("
+            f"name={self.name!r}, "
+            f"format={self.format!r}, "
+            f"manifest_version={self.manifest_version!r}, "
+            f"original_filename={self.original_filename!r}, "
+            f"valid_onnx={self.valid_onnx!r}"
+            f")"
+        )
+
+    def __str__(self) -> str:
+        lines = [
+            "NgravManifest",
+            "────────────────────────────────────────────────────────",
+            f"Name:               {self.name}",
+            f"Description:        {self.description or 'None'}",
+            f"Format:             {self.format}",
+            f"Manifest version:   {self.manifest_version}",
+            f"Original file:      {self.original_filename}",
+            f"Valid ONNX:         {'Yes' if self.valid_onnx else 'No'}",
+            "",
+            "Model",
+            f"  IR version:       {self.model_info.ir_version}",
+            f"  Producer:         {self.model_info.producer_name or 'Unknown'}"
+            f"{' ' + self.model_info.producer_version if self.model_info.producer_version else ''}",
+            f"  Model version:    {self.model_info.model_version or 'None'}",
+            f"  Graph:            {self.model_info.graph_name or 'None'}",
+            f"  Opsets:           {len(self.model_info.opsets)}",
+            "",
+            "runtime_info",
+            f"  Engine:            {self.runtime_info.engine_name} "
+            f"{self.runtime_info.engine_version}",
+            f"  Python:            {self.runtime_info.python_version} "
+            f"({self.runtime_info.python_implementation})",
+            "",
+            "Platform",
+            f"  OS:                {self.platform.operating_system}",
+            f"  Distribution:      {self.platform.distribution} "
+            f"{self.platform.distribution_version}",
+            f"  Architecture:      {self.platform.architecture}",
+            f"  CPU:               {self.platform.cpu_architecture}",
+            f"  CPU cores:         {self.platform.cpu_cores}",
+            f"  Dependencies:      {len(self.platform.dependencies)}",
+            "",
+            "Execution History",
+            f"  Total executions:  {self.history_info.total_count}",
+            f"  Successful:        {self.history_info.successes}",
+            f"  Failed:            {self.history_info.failures}",
+            f"  Average latency:   {self.history_info.average_latency_ms:.2f} ms",
+        ]
+
+        if self.history_info.last_execution:
+            last = self.history_info.last_execution
+
+            lines.extend([
+                "",
+                "Last execution",
+                f"  ID:                {last.id}",
+                f"  Status:            {last.status}",
+                f"  Duration:          {last.duration_ms:.2f} ms",
+                f"  Timestamp:         {last.timestamp.isoformat()}",
+            ])
+
+        lines.extend([
+            "",
+            f"Created:            {self.created_at.isoformat()}",
+            f"Updated:            {self.updated_at.isoformat()}",
+            "────────────────────────────────────────────────────────",
+        ])
+
+        return "\n".join(lines)
+
+    
 
 #==================================================================================================================
-# NGRAV METADATA: Onnx model info
+# NGRAV METADATA: Onnx model_info info
 #==================================================================================================================
 
 class OnnxModelInfo(NgravMetadataBaseModel):
@@ -210,7 +481,7 @@ class BaseInfo(NgravMetadataBaseModel):
 #==================================================================================================================
 
 class ExecutionInfo(NgravMetadataBaseModel):
-    """Metadata representing core elements of NgravPacket internal execution history"""
+    """Metadata representing core elements of NgravPacket internal execution history_info"""
 
     total_count: int = 0
     successes: int = 0
@@ -305,13 +576,13 @@ class LastExecutionEntryInfo(NgravMetadataBaseModel):
         )
 
 #==================================================================================================================
-# NGRAV METADATA: Runtime & Platform info
+# NGRAV METADATA: runtime_info & Platform info
 #==================================================================================================================
 
-class RuntimeInfo(NgravMetadataBaseModel):
-    """Metadata representing the runtime environment and model execution"""
+class runtime_infoInfo(NgravMetadataBaseModel):
+    """Metadata representing the runtime_info environment and model_info execution"""
 
-    engine_name: str = "onnxruntime"
+    engine_name: str = "onnxruntime_info"
     engine_version: str
 
     python_version: str
@@ -319,7 +590,7 @@ class RuntimeInfo(NgravMetadataBaseModel):
 
     def __repr__(self) -> str:
         return (
-            f"RuntimeInfo("
+            f"runtime_infoInfo("
             f"engine_name={self.engine_name!r}, "
             f"engine_version={self.engine_version!r}, "
             f"python_version={self.python_version!r}, "
@@ -329,7 +600,7 @@ class RuntimeInfo(NgravMetadataBaseModel):
 
     def __str__(self) -> str:
         return (
-            "RuntimeInfo\n"
+            "runtime_infoInfo\n"
             "────────────────────────────────────────\n"
             f"Engine:           {self.engine_name}\n"
             f"Engine version:   {self.engine_version}\n"
