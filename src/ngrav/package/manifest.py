@@ -14,6 +14,9 @@ from datetime import datetime, UTC
 from typing import Any
 
 from pydantic import BaseModel, Field
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
 
 #==================================================================================================================
 # NGRAV METADATA: Metadata Base Class
@@ -52,6 +55,62 @@ class NgravMetadataBaseModel(BaseModel):
             sort_keys=False,
             allow_unicode=True
         )
+
+    #==================================================================================================================
+    # Rich display
+    #==================================================================================================================
+
+    def display(self, console: Console | None = None) -> None:
+        """
+        Display intenral metadata using Rich formatting.
+        """
+
+        if console is None:
+            console = Console()
+
+        console.print(
+            Panel(
+                str(self),
+                title=self.__class__.__name__,
+                border_style="cyan"
+            )
+        )
+
+    #==================================================================================================================
+    # Dunder-methods
+    #==================================================================================================================
+
+    def _repr_fields(self) -> str:
+        values = self.model_dump(
+            mode="python",
+            exclude_none=True
+        )
+
+        formatted_str = ", ".join(
+            f"{key}={value!r}"
+            for key, value in values.items()
+        )
+
+        return formatted_str
+
+    def __repr__(self) -> str:
+        """Return informative developer-facing string representation of manife component"""
+        return f"{self.__class__.__name__}({self._repr_fields()})"
+
+    def __str__(self) -> str:
+        """Return readable and declarative string representation of manife component"""
+
+        values = self.model_dump(
+            mode="python",
+            exclude_none=True,
+        )
+
+        lines = [self.__class__.__name__]
+
+        for key, value in values.items():
+            lines.append(f" {key}: {value}")
+
+        return "\n".join(lines)
 
 #==================================================================================================================
 # NGRAV METADATA: Core Manifest
